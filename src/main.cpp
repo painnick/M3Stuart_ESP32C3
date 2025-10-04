@@ -1,8 +1,8 @@
 #include <Arduino.h>
 #include <Bluepad32.h>
-#include <DFPlayerMini_Fast.h>
+// #include <DFPlayerMini_Fast.h>
 #include <ESP32Servo.h>
-#include <EEPROM.h>
+// #include <EEPROM.h>
 #include <esp_log.h>
 #include <driver/ledc.h>
 
@@ -22,11 +22,13 @@ static auto MAIN_TAG = "RC_TANK";
 // LEDC 설정 (트랙 모터용)
 #define LEDC_FREQ 5000
 #define LEDC_RESOLUTION 8
+#define LEDC_MAX_VAL 256
+
 // LEDC 채널 매핑 (필요 시 겹치지 않게 조정 가능)
-#define LEDC_CH_LEFT_IN1 0
-#define LEDC_CH_LEFT_IN2 1
-#define LEDC_CH_RIGHT_IN1 2
-#define LEDC_CH_RIGHT_IN2 3
+#define LEDC_CH_LEFT_IN1 4
+#define LEDC_CH_LEFT_IN2 5
+#define LEDC_CH_RIGHT_IN1 3
+#define LEDC_CH_RIGHT_IN2 2
 
 // DC 모터 최소 속도 임계값 (80 미만은 처리하지 않음)
 #define MOTOR_MIN_SPEED_THRESHOLD 80
@@ -41,23 +43,23 @@ typedef struct {
 } MotorConfig;
 
 // EEPROM 주소
-#define EEPROM_LEFT_SPEED_ADDR 0
-#define EEPROM_RIGHT_SPEED_ADDR 1
-#define EEPROM_BUTTON_SWAP_FLAG_ADDR 2
-#define EEPROM_VOLUME_ADDR 4
+// #define EEPROM_LEFT_SPEED_ADDR 0
+// #define EEPROM_RIGHT_SPEED_ADDR 1
+// #define EEPROM_BUTTON_SWAP_FLAG_ADDR 2
+// #define EEPROM_VOLUME_ADDR 4
 
 // EEPROM 초기화 플래그
-#define EEPROM_INIT_FLAG_ADDR 5
+// #define EEPROM_INIT_FLAG_ADDR 5
 
 // 게임패드 관련 변수
 ControllerPtr myControllers[BP32_MAX_GAMEPADS];
 bool gamepadConnected = false;
 
 // DFPlayer 관련 변수
-DFPlayerMini_Fast myDFPlayer;
-HardwareSerial DFPlayerSerial(2); // UART2 사용
-unsigned long lastIdleSoundTime = 0;
-constexpr unsigned long idleSoundInterval = 13000; // 13초마다 효과음 1 재생
+// DFPlayerMini_Fast myDFPlayer;
+// HardwareSerial DFPlayerSerial(2); // UART2 사용
+// unsigned long lastIdleSoundTime = 0;
+// constexpr unsigned long idleSoundInterval = 13000; // 13초마다 효과음 1 재생
 
 // 터렛 서보 객체
 Servo turretServo;
@@ -115,10 +117,10 @@ unsigned long machineGunStartTime = 0;
 constexpr unsigned long machineGunDuration = 1000; // 1초간 기관총 발사
 
 // 효과음 파일 번호
-#define SOUND_IDLE 1
-#define SOUND_CANNON 2
-#define SOUND_MACHINEGUN 3
-#define SOUND_CONNECTED 4
+// #define SOUND_IDLE 1
+// #define SOUND_CANNON 2
+// #define SOUND_MACHINEGUN 3
+// #define SOUND_CONNECTED 4
 
 // 게임패드 연결 콜백
 void onConnectedController(const ControllerPtr ctl) {
@@ -137,7 +139,7 @@ void onConnectedController(const ControllerPtr ctl) {
       gamepadConnected = true;
 
       // 게임패드 연결 시 효과음 4 재생
-      myDFPlayer.play(SOUND_CONNECTED);
+      // myDFPlayer.play(SOUND_CONNECTED);
       break;
     }
   }
@@ -169,8 +171,8 @@ void onDisconnectedController(ControllerPtr ctl) {
 
   if (!gamepadConnected) {
     // 모든 게임패드가 연결 해제되면 효과음 1 재생 시작
-    myDFPlayer.play(SOUND_IDLE);
-    lastIdleSoundTime = millis();
+    // myDFPlayer.play(SOUND_IDLE);
+    // lastIdleSoundTime = millis();
   }
 
   if (!foundController) {
@@ -202,12 +204,12 @@ void setMotorSpeed(const MotorConfig *motor, int speed) {
   // LEDC는 8비트 해상도 사용: 듀티 0~255
   if (speed > 0) {
     // 정방향 회전
-    ledcWrite(motor->channelA, speed);
+    ledcWrite(motor->channelA, 255 /* speed */);
     ledcWrite(motor->channelB, 0);
   } else if (speed < 0) {
     // 역방향 회전
     ledcWrite(motor->channelA, 0);
-    ledcWrite(motor->channelB, -speed);
+    ledcWrite(motor->channelB, 255 /* speed */);
   } else {
     // 정지
     ledcWrite(motor->channelA, 0);
@@ -223,75 +225,75 @@ void setMotorSpeed(const MotorConfig *motor, int speed) {
 // EEPROM에서 속도 배율 값 읽기
 void loadSpeedSettings() {
   // EEPROM에서 배율 값을 읽기 (0.1~2.0 범위를 10~200으로 저장)
-  int leftMultiplierInt = EEPROM.read(EEPROM_LEFT_SPEED_ADDR);
-  int rightMultiplierInt = EEPROM.read(EEPROM_RIGHT_SPEED_ADDR);
+  // int leftMultiplierInt = EEPROM.read(EEPROM_LEFT_SPEED_ADDR);
+  // int rightMultiplierInt = EEPROM.read(EEPROM_RIGHT_SPEED_ADDR);
 
   // 기본값 설정 (EEPROM이 초기화되지 않은 경우)
-  if (leftMultiplierInt == 0 || leftMultiplierInt > 200) {
-    leftMultiplierInt = 100; // 1.0을 100으로 저장
-    EEPROM.write(EEPROM_LEFT_SPEED_ADDR, leftMultiplierInt);
-  }
-  if (rightMultiplierInt == 0 || rightMultiplierInt > 200) {
-    rightMultiplierInt = 100; // 1.0을 100으로 저장
-    EEPROM.write(EEPROM_RIGHT_SPEED_ADDR, rightMultiplierInt);
-  }
-  EEPROM.commit();
+  // if (leftMultiplierInt == 0 || leftMultiplierInt > 200) {
+  //   leftMultiplierInt = 100; // 1.0을 100으로 저장
+  //   EEPROM.write(EEPROM_LEFT_SPEED_ADDR, leftMultiplierInt);
+  // }
+  // if (rightMultiplierInt == 0 || rightMultiplierInt > 200) {
+  //   rightMultiplierInt = 100; // 1.0을 100으로 저장
+  //   EEPROM.write(EEPROM_RIGHT_SPEED_ADDR, rightMultiplierInt);
+  // }
+  // EEPROM.commit();
 
   // 정수 값을 배율로 변환 (100 = 1.0)
-  leftTrackMultiplier = leftMultiplierInt / 100.0;
-  rightTrackMultiplier = rightMultiplierInt / 100.0;
+  // leftTrackMultiplier = leftMultiplierInt / 100.0;
+  // rightTrackMultiplier = rightMultiplierInt / 100.0;
 
-  ESP_LOGI(MAIN_TAG, "Loaded speed multipliers: left=%.1f, right=%.1f", leftTrackMultiplier, rightTrackMultiplier);
+  // ESP_LOGI(MAIN_TAG, "Loaded speed multipliers: left=%.1f, right=%.1f", leftTrackMultiplier, rightTrackMultiplier);
 }
 
 // EEPROM에 속도 배율 값 저장
 void saveSpeedSettings() {
   // 배율을 정수로 변환하여 저장 (1.0 = 100)
-  const int leftMultiplierInt = static_cast<int>(leftTrackMultiplier * 100);
-  const int rightMultiplierInt = static_cast<int>(rightTrackMultiplier * 100);
+  // const int leftMultiplierInt = static_cast<int>(leftTrackMultiplier * 100);
+  // const int rightMultiplierInt = static_cast<int>(rightTrackMultiplier * 100);
 
-  EEPROM.write(EEPROM_LEFT_SPEED_ADDR, leftMultiplierInt);
-  EEPROM.write(EEPROM_RIGHT_SPEED_ADDR, rightMultiplierInt);
-  EEPROM.commit();
-  ESP_LOGI(MAIN_TAG, "Speed multipliers saved: left=%.1f, right=%.1f", leftTrackMultiplier, rightTrackMultiplier);
+  // EEPROM.write(EEPROM_LEFT_SPEED_ADDR, leftMultiplierInt);
+  // EEPROM.write(EEPROM_RIGHT_SPEED_ADDR, rightMultiplierInt);
+  // EEPROM.commit();
+  // ESP_LOGI(MAIN_TAG, "Speed multipliers saved: left=%.1f, right=%.1f", leftTrackMultiplier, rightTrackMultiplier);
 }
 
 // 버튼 스왑 설정 저장
 void saveButtonSwapSettings() {
-  EEPROM.write(EEPROM_BUTTON_SWAP_FLAG_ADDR, buttonSwapEnabled ? 1 : 0);
-  EEPROM.commit();
-  ESP_LOGI(MAIN_TAG, "Button swap setting saved: %s", buttonSwapEnabled ? "enabled" : "disabled");
+  // EEPROM.write(EEPROM_BUTTON_SWAP_FLAG_ADDR, buttonSwapEnabled ? 1 : 0);
+  // EEPROM.commit();
+  // ESP_LOGI(MAIN_TAG, "Button swap setting saved: %s", buttonSwapEnabled ? "enabled" : "disabled");
 }
 
 // 볼륨 설정 저장
 void saveVolumeSettings() {
-  EEPROM.write(EEPROM_VOLUME_ADDR, currentVolume);
-  EEPROM.commit();
-  ESP_LOGI(MAIN_TAG, "Volume setting saved: %d", currentVolume);
+  // EEPROM.write(EEPROM_VOLUME_ADDR, currentVolume);
+  // EEPROM.commit();
+  // ESP_LOGI(MAIN_TAG, "Volume setting saved: %d", currentVolume);
 }
 
 // 볼륨 설정 로드
 void loadVolumeSettings() {
-  int volume = EEPROM.read(EEPROM_VOLUME_ADDR);
+  // int volume = EEPROM.read(EEPROM_VOLUME_ADDR);
 
   // 기본값 설정 (EEPROM이 초기화되지 않은 경우)
-  if (volume < 1 || volume > 30) {
-    volume = 20; // 기본 볼륨 20
-    EEPROM.write(EEPROM_VOLUME_ADDR, volume);
-    EEPROM.commit();
-  }
+  // if (volume < 1 || volume > 30) {
+  //   volume = 20; // 기본 볼륨 20
+  //   EEPROM.write(EEPROM_VOLUME_ADDR, volume);
+  //   EEPROM.commit();
+  // }
 
-  currentVolume = volume;
-  tempVolume = volume;
-  myDFPlayer.volume(currentVolume);
-  ESP_LOGI(MAIN_TAG, "Volume setting loaded: %d", currentVolume);
+  // currentVolume = volume;
+  // tempVolume = volume;
+  // myDFPlayer.volume(currentVolume);
+  // ESP_LOGI(MAIN_TAG, "Volume setting loaded: %d", currentVolume);
 }
 
 // 버튼 스왑 설정 로드
 void loadButtonSwapSettings() {
-  const int swapFlag = EEPROM.read(EEPROM_BUTTON_SWAP_FLAG_ADDR);
-  buttonSwapEnabled = (swapFlag == 1);
-  ESP_LOGI(MAIN_TAG, "Button swap setting loaded: %s", buttonSwapEnabled ? "enabled" : "disabled");
+  // const int swapFlag = EEPROM.read(EEPROM_BUTTON_SWAP_FLAG_ADDR);
+  // buttonSwapEnabled = (swapFlag == 1);
+  // ESP_LOGI(MAIN_TAG, "Button swap setting loaded: %s", buttonSwapEnabled ? "enabled" : "disabled");
 }
 
 // EEPROM 초기화 및 ESP32 재시작
@@ -299,10 +301,10 @@ void resetEEPROMAndRestart() {
   ESP_LOGI(MAIN_TAG, "EEPROM 초기화 및 재시작 시작...");
 
   // 모든 EEPROM 데이터 초기화
-  for (int i = 0; i < 512; i++) {
-    EEPROM.write(i, 0);
-  }
-  EEPROM.commit();
+  // for (int i = 0; i < 512; i++) {
+  //   EEPROM.write(i, 0);
+  // }
+  // EEPROM.commit();
 
   ESP_LOGI(MAIN_TAG, "EEPROM 초기화 완료. 3초 후 재시작합니다.");
 
@@ -312,7 +314,7 @@ void resetEEPROMAndRestart() {
 }
 
 void dumpGamepad(ControllerPtr ctl) {
-  ESP_LOGV(MAIN_TAG,
+  ESP_LOGD(MAIN_TAG,
       "%s %s %s %s %s %s %s %s %s %s %s %s %s %s misc: 0x%02x",
       ctl->a() ? "A" : "-",
       ctl->b() ? "B" : "-",
@@ -345,10 +347,10 @@ void processGamepad(const ControllerPtr ctl) {
   if (abs(rightStickY) < 50) rightStickY = 0;
 
   // 좌측 스틱 Y축으로 좌측 트랙 전후진 제어
-  int leftTrackSpeed = map(leftStickY, -512, 512, -255, 255);
+  int leftTrackSpeed = map(leftStickY, -255, 255, -255, 255); // TODO. 입력 기기마다 다른 입렵 범위가 들어오는지 확인
 
   // 우측 스틱 Y축으로 우측 트랙 전후진 제어
-  int rightTrackSpeed = map(rightStickY, -512, 512, -255, 255);
+  int rightTrackSpeed = map(rightStickY, -255, 255, -255, 255); // TODO. 입력 기기마다 다른 입렵 범위가 들어오는지 확인
 
   // 속도 제한
   leftTrackSpeed = constrain(leftTrackSpeed, -255, 255);
@@ -394,7 +396,7 @@ void processGamepad(const ControllerPtr ctl) {
     // 서보 제거됨
 
     // 효과음 2 재생
-    myDFPlayer.play(SOUND_CANNON);
+    // myDFPlayer.play(SOUND_CANNON);
   }
 
   // A 버튼으로 기관총 발사
@@ -407,7 +409,7 @@ void processGamepad(const ControllerPtr ctl) {
     ctl->playDualRumble(0, 300, 0xFF, 0x0);
 
     // 효과음 3 재생
-    myDFPlayer.play(SOUND_MACHINEGUN);
+    // myDFPlayer.play(SOUND_MACHINEGUN);
   }
 
   // L1 + (X 또는 Y) 버튼으로 볼륨 조절 (둔감하게 처리)
@@ -437,7 +439,7 @@ void processGamepad(const ControllerPtr ctl) {
       // L1 버튼을 뗐을 때 볼륨 변경사항 저장
       if (tempVolume != currentVolume) {
         currentVolume = tempVolume;
-        myDFPlayer.volume(currentVolume); // DFPlayer 볼륨 적용
+        // myDFPlayer.volume(currentVolume); // DFPlayer 볼륨 적용
         volumeChanged = true;
         ESP_LOGI(MAIN_TAG, "Volume change confirmed: %d", currentVolume);
       }
@@ -464,7 +466,7 @@ void processGamepad(const ControllerPtr ctl) {
       // R1 버튼을 뗐을 때 볼륨 변경사항 저장
       if (tempVolume != currentVolume) {
         currentVolume = tempVolume;
-        myDFPlayer.volume(currentVolume); // DFPlayer 볼륨 적용
+        // myDFPlayer.volume(currentVolume); // DFPlayer 볼륨 적용
         volumeChanged = true;
         ESP_LOGI(MAIN_TAG, "Volume change confirmed: %d", currentVolume);
       }
@@ -606,8 +608,8 @@ void processCannonFiring() {
 
       // 효과음 1 재생 재개 (게임패드가 연결되어 있지 않은 경우)
       if (!gamepadConnected && !machineGunFiring) {
-        myDFPlayer.play(SOUND_IDLE);
-        lastIdleSoundTime = millis();
+        // myDFPlayer.play(SOUND_IDLE);
+        // lastIdleSoundTime = millis();
       }
     }
   }
@@ -629,8 +631,8 @@ void processMachineGunFiring() {
 
       // 효과음 1 재생 재개 (게임패드가 연결되어 있지 않은 경우)
       if (!gamepadConnected && !cannonFiring) {
-        myDFPlayer.play(SOUND_IDLE);
-        lastIdleSoundTime = millis();
+        // myDFPlayer.play(SOUND_IDLE);
+        // lastIdleSoundTime = millis();
       }
     }
   }
@@ -659,13 +661,13 @@ void processLEDBlinking() {
 
 // 효과음 반복 재생 처리
 void processIdleSound() {
-  if (!gamepadConnected && !cannonFiring && !machineGunFiring) {
-    const unsigned long currentTime = millis();
-    if (currentTime - lastIdleSoundTime >= idleSoundInterval) {
-      myDFPlayer.play(SOUND_IDLE);
-      lastIdleSoundTime = currentTime;
-    }
-  }
+  // if (!gamepadConnected && !cannonFiring && !machineGunFiring) {
+  //   const unsigned long currentTime = millis();
+  //   if (currentTime - lastIdleSoundTime >= idleSoundInterval) {
+  //     myDFPlayer.play(SOUND_IDLE);
+  //     lastIdleSoundTime = currentTime;
+  //   }
+  // }
 }
 
 // 모든 컨트롤러 처리
@@ -681,13 +683,24 @@ void processControllers() {
 
 // 설정 함수
 void setup() {
+  Serial.begin(115200);
+  delay(2000); // USB CDC 초기화를 위한 충분한 대기 시간
+
+  // ESP-IDF 로그를 Serial 객체로 출력하도록 설정
+  Serial.setDebugOutput(true);
+
+  // (선택 사항) 런타임에 특정 태그의 로그 레벨 설정
+  esp_log_level_set("*", ESP_LOG_DEBUG);
+
   ESP_LOGI(MAIN_TAG, "RC Tank Initialization...");
+
+  Serial.println("Hello World");
 
   // Brownout을 피하기 위해 CPU 클록을 160 MHz로 낮춤
   setCpuFrequencyMhz(160);
 
   // EEPROM 초기화
-  EEPROM.begin(512);
+  // EEPROM.begin(512);
 
   // 핀 모드 설정
   pinMode(LEFT_TRACK_IN1, OUTPUT);
@@ -717,26 +730,26 @@ void setup() {
   turretServo.write(turretAngle);
 
   // DFPlayer 초기화
-  DFPlayerSerial.begin(9600, SERIAL_8N1, DFPLAYER_RX, DFPLAYER_TX);
-  myDFPlayer.begin(DFPlayerSerial);
+  // DFPlayerSerial.begin(9600, SERIAL_8N1, DFPLAYER_RX, DFPLAYER_TX);
+  // myDFPlayer.begin(DFPlayerSerial);
   // 볼륨은 loadVolumeSettings()에서 설정됨
 
   // EEPROM에서 설정 로드
-  loadSpeedSettings();
-  loadButtonSwapSettings();
-  loadVolumeSettings();
+  // loadSpeedSettings();
+  // loadButtonSwapSettings();
+  // loadVolumeSettings();
 
   // 효과음 1 재생 시작
-  myDFPlayer.play(SOUND_IDLE);
-  lastIdleSoundTime = millis();
+  // myDFPlayer.play(SOUND_IDLE);
+  // lastIdleSoundTime = millis();
 
   // EEPROM 초기화 플래그 확인 (첫 실행 시)
-  const int initFlag = EEPROM.read(EEPROM_INIT_FLAG_ADDR);
-  if (initFlag != 0xAA) {
-    ESP_LOGI(MAIN_TAG, "EEPROM이 초기화되지 않았습니다. 초기화 플래그를 설정합니다.");
-    EEPROM.write(EEPROM_INIT_FLAG_ADDR, 0xAA);
-    EEPROM.commit();
-  }
+  // const int initFlag = EEPROM.read(EEPROM_INIT_FLAG_ADDR);
+  // if (initFlag != 0xAA) {
+  //   ESP_LOGI(MAIN_TAG, "EEPROM이 초기화되지 않았습니다. 초기화 플래그를 설정합니다.");
+  //   EEPROM.write(EEPROM_INIT_FLAG_ADDR, 0xAA);
+  //   EEPROM.commit();
+  // }
 
   // Bluepad32 설정
   BP32.setup(&onConnectedController, &onDisconnectedController);
@@ -757,25 +770,31 @@ void setup() {
   ESP_LOGI(MAIN_TAG, "RC Tank Initialization Complete!");
 }
 
+unsigned long lastCheckTime = 0;
 // 메인 루프
 void loop() {
+  if (millis() - lastCheckTime >= 1000 * 10) {
+    lastCheckTime = millis();
+    ESP_LOGI(MAIN_TAG, "LOOP : Hello World");
+  }
+
   // Bluepad32 업데이트
   const bool dataUpdated = BP32.update();
   if (dataUpdated) {
     processControllers();
   }
 
-  // 포신 발사 처리
-  processCannonFiring();
+  // // 포신 발사 처리
+  // processCannonFiring();
 
-  // 기관총 발사 처리
-  processMachineGunFiring();
+  // // 기관총 발사 처리
+  // processMachineGunFiring();
 
-  // LED 깜빡임 처리
-  processLEDBlinking();
+  // // LED 깜빡임 처리
+  // processLEDBlinking();
 
-  // 효과음 반복 재생 처리
-  processIdleSound();
+  // // 효과음 반복 재생 처리
+  // processIdleSound();
 
   delay(10); // 10ms 딜레이
 }
