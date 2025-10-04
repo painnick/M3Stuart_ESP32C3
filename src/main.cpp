@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <Bluepad32.h>
-// #include <DFPlayerMini_Fast.h>
+#include <DFPlayerMini_Fast.h>
 #include <ESP32Servo.h>
 // #include <EEPROM.h>
 #include <esp_log.h>
@@ -9,8 +9,8 @@
 static auto MAIN_TAG = "RC_TANK";
 
 // 핀 정의
-#define DFPLAYER_RX 20
-#define DFPLAYER_TX 21
+#define DFPLAYER_RX 20 // Unused
+#define DFPLAYER_TX 10 // dfplayer RX
 #define LEFT_TRACK_IN1 6
 #define LEFT_TRACK_IN2 5
 #define RIGHT_TRACK_IN1 4
@@ -56,10 +56,10 @@ ControllerPtr myControllers[BP32_MAX_GAMEPADS];
 bool gamepadConnected = false;
 
 // DFPlayer 관련 변수
-// DFPlayerMini_Fast myDFPlayer;
-// HardwareSerial DFPlayerSerial(2); // UART2 사용
-// unsigned long lastIdleSoundTime = 0;
-// constexpr unsigned long idleSoundInterval = 13000; // 13초마다 효과음 1 재생
+DFPlayerMini_Fast myDFPlayer;
+HardwareSerial DFPlayerSerial(1); // UART2 사용
+unsigned long lastIdleSoundTime = 0;
+constexpr unsigned long idleSoundInterval = 13000; // 13초마다 효과음 1 재생
 
 // 터렛 서보 객체
 Servo turretServo;
@@ -117,10 +117,10 @@ unsigned long machineGunStartTime = 0;
 constexpr unsigned long machineGunDuration = 1000; // 1초간 기관총 발사
 
 // 효과음 파일 번호
-// #define SOUND_IDLE 1
-// #define SOUND_CANNON 2
-// #define SOUND_MACHINEGUN 3
-// #define SOUND_CONNECTED 4
+#define SOUND_IDLE 1
+#define SOUND_CANNON 2
+#define SOUND_MACHINEGUN 3
+#define SOUND_CONNECTED 4
 
 // 게임패드 연결 콜백
 void onConnectedController(const ControllerPtr ctl) {
@@ -139,7 +139,7 @@ void onConnectedController(const ControllerPtr ctl) {
       gamepadConnected = true;
 
       // 게임패드 연결 시 효과음 4 재생
-      // myDFPlayer.play(SOUND_CONNECTED);
+      myDFPlayer.play(SOUND_CONNECTED);
       break;
     }
   }
@@ -171,8 +171,8 @@ void onDisconnectedController(ControllerPtr ctl) {
 
   if (!gamepadConnected) {
     // 모든 게임패드가 연결 해제되면 효과음 1 재생 시작
-    // myDFPlayer.play(SOUND_IDLE);
-    // lastIdleSoundTime = millis();
+    myDFPlayer.play(SOUND_IDLE);
+    lastIdleSoundTime = millis();
   }
 
   if (!foundController) {
@@ -396,7 +396,7 @@ void processGamepad(const ControllerPtr ctl) {
     // 서보 제거됨
 
     // 효과음 2 재생
-    // myDFPlayer.play(SOUND_CANNON);
+    myDFPlayer.play(SOUND_CANNON);
   }
 
   // A 버튼으로 기관총 발사
@@ -409,7 +409,7 @@ void processGamepad(const ControllerPtr ctl) {
     ctl->playDualRumble(0, 300, 0xFF, 0x0);
 
     // 효과음 3 재생
-    // myDFPlayer.play(SOUND_MACHINEGUN);
+    myDFPlayer.play(SOUND_MACHINEGUN);
   }
 
   // L1 + (X 또는 Y) 버튼으로 볼륨 조절 (둔감하게 처리)
@@ -439,7 +439,7 @@ void processGamepad(const ControllerPtr ctl) {
       // L1 버튼을 뗐을 때 볼륨 변경사항 저장
       if (tempVolume != currentVolume) {
         currentVolume = tempVolume;
-        // myDFPlayer.volume(currentVolume); // DFPlayer 볼륨 적용
+        myDFPlayer.volume(currentVolume); // DFPlayer 볼륨 적용
         volumeChanged = true;
         ESP_LOGI(MAIN_TAG, "Volume change confirmed: %d", currentVolume);
       }
@@ -466,7 +466,7 @@ void processGamepad(const ControllerPtr ctl) {
       // R1 버튼을 뗐을 때 볼륨 변경사항 저장
       if (tempVolume != currentVolume) {
         currentVolume = tempVolume;
-        // myDFPlayer.volume(currentVolume); // DFPlayer 볼륨 적용
+        myDFPlayer.volume(currentVolume); // DFPlayer 볼륨 적용
         volumeChanged = true;
         ESP_LOGI(MAIN_TAG, "Volume change confirmed: %d", currentVolume);
       }
@@ -608,8 +608,8 @@ void processCannonFiring() {
 
       // 효과음 1 재생 재개 (게임패드가 연결되어 있지 않은 경우)
       if (!gamepadConnected && !machineGunFiring) {
-        // myDFPlayer.play(SOUND_IDLE);
-        // lastIdleSoundTime = millis();
+        myDFPlayer.play(SOUND_IDLE);
+        lastIdleSoundTime = millis();
       }
     }
   }
@@ -631,8 +631,8 @@ void processMachineGunFiring() {
 
       // 효과음 1 재생 재개 (게임패드가 연결되어 있지 않은 경우)
       if (!gamepadConnected && !cannonFiring) {
-        // myDFPlayer.play(SOUND_IDLE);
-        // lastIdleSoundTime = millis();
+        myDFPlayer.play(SOUND_IDLE);
+        lastIdleSoundTime = millis();
       }
     }
   }
@@ -661,13 +661,13 @@ void processLEDBlinking() {
 
 // 효과음 반복 재생 처리
 void processIdleSound() {
-  // if (!gamepadConnected && !cannonFiring && !machineGunFiring) {
-  //   const unsigned long currentTime = millis();
-  //   if (currentTime - lastIdleSoundTime >= idleSoundInterval) {
-  //     myDFPlayer.play(SOUND_IDLE);
-  //     lastIdleSoundTime = currentTime;
-  //   }
-  // }
+  if (!gamepadConnected && !cannonFiring && !machineGunFiring) {
+    const unsigned long currentTime = millis();
+    if (currentTime - lastIdleSoundTime >= idleSoundInterval) {
+      myDFPlayer.play(SOUND_IDLE);
+      lastIdleSoundTime = currentTime;
+    }
+  }
 }
 
 // 모든 컨트롤러 처리
@@ -683,6 +683,7 @@ void processControllers() {
 
 // 설정 함수
 void setup() {
+#if ARDUINO_USB_CDC_ON_BOOT
   Serial.begin(115200);
   delay(2000); // USB CDC 초기화를 위한 충분한 대기 시간
 
@@ -695,6 +696,7 @@ void setup() {
   ESP_LOGI(MAIN_TAG, "RC Tank Initialization...");
 
   Serial.println("Hello World");
+#endif
 
   // Brownout을 피하기 위해 CPU 클록을 160 MHz로 낮춤
   setCpuFrequencyMhz(160);
@@ -730,8 +732,8 @@ void setup() {
   turretServo.write(turretAngle);
 
   // DFPlayer 초기화
-  // DFPlayerSerial.begin(9600, SERIAL_8N1, DFPLAYER_RX, DFPLAYER_TX);
-  // myDFPlayer.begin(DFPlayerSerial);
+  DFPlayerSerial.begin(9600, SERIAL_8N1, DFPLAYER_RX, DFPLAYER_TX);
+  myDFPlayer.begin(DFPlayerSerial);
   // 볼륨은 loadVolumeSettings()에서 설정됨
 
   // EEPROM에서 설정 로드
@@ -740,8 +742,8 @@ void setup() {
   // loadVolumeSettings();
 
   // 효과음 1 재생 시작
-  // myDFPlayer.play(SOUND_IDLE);
-  // lastIdleSoundTime = millis();
+  myDFPlayer.play(SOUND_IDLE);
+  lastIdleSoundTime = millis();
 
   // EEPROM 초기화 플래그 확인 (첫 실행 시)
   // const int initFlag = EEPROM.read(EEPROM_INIT_FLAG_ADDR);
@@ -784,17 +786,17 @@ void loop() {
     processControllers();
   }
 
-  // // 포신 발사 처리
-  // processCannonFiring();
+  // 포신 발사 처리
+  processCannonFiring();
 
-  // // 기관총 발사 처리
-  // processMachineGunFiring();
+  // 기관총 발사 처리
+  processMachineGunFiring();
 
-  // // LED 깜빡임 처리
-  // processLEDBlinking();
+  // LED 깜빡임 처리
+  processLEDBlinking();
 
-  // // 효과음 반복 재생 처리
-  // processIdleSound();
+  // 효과음 반복 재생 처리
+  processIdleSound();
 
   delay(10); // 10ms 딜레이
 }
