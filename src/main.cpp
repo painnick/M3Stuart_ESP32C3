@@ -11,10 +11,10 @@ static auto MAIN_TAG = "RC_TANK";
 // 핀 정의
 #define DFPLAYER_RX 20 // Unused
 #define DFPLAYER_TX 10 // dfplayer RX
-#define LEFT_TRACK_IN1 6
-#define LEFT_TRACK_IN2 5
-#define RIGHT_TRACK_IN1 4
-#define RIGHT_TRACK_IN2 3
+#define LEFT_TRACK_IN1 4
+#define LEFT_TRACK_IN2 3
+#define RIGHT_TRACK_IN1 6
+#define RIGHT_TRACK_IN2 5
 #define CANNON_LED_PIN 1
 #define HEADLIGHT_PIN 0
 #define TURRET_SERVO_PIN 7   // 터렛 회전 SG90 서보 핀
@@ -102,7 +102,6 @@ MotorConfig rightTrackMotor = {
 
 // LED 상태
 bool headlightOn = false;
-bool ledBlinking = false;
 unsigned long lastBlinkTime = 0;
 constexpr unsigned long blinkInterval = 100; // 100ms 간격으로 깜빡임
 
@@ -201,15 +200,15 @@ void setMotorSpeed(const MotorConfig *motor, int speed) {
            speed,
            *(motor->prevSpeed));
 
-  // LEDC는 8비트 해상도 사용: 듀티 0~255
+  // LEDC는 8비트 해상도 사용: 듀티 0~512
   if (speed > 0) {
     // 정방향 회전
-    ledcWrite(motor->channelA, 255 /* speed */);
+    ledcWrite(motor->channelA, 512 /* speed */);
     ledcWrite(motor->channelB, 0);
   } else if (speed < 0) {
     // 역방향 회전
     ledcWrite(motor->channelA, 0);
-    ledcWrite(motor->channelB, 255 /* speed */);
+    ledcWrite(motor->channelB, 512 /* speed */);
   } else {
     // 정지
     ledcWrite(motor->channelA, 0);
@@ -315,7 +314,8 @@ void resetEEPROMAndRestart() {
 
 void dumpGamepad(ControllerPtr ctl) {
   ESP_LOGD(MAIN_TAG,
-      "%s %s %s %s %s %s %s %s %s %s %s %s %s %s misc: 0x%02x",
+      "0x%02x %s %s %s %s %s %s %s %s %s %s %s %s %s %s misc: 0x%02x LY:%3d RY:%3d",
+      ctl->dpad(),
       ctl->a() ? "A" : "-",
       ctl->b() ? "B" : "-",
       ctl->x() ? "X" : "-",
@@ -330,7 +330,9 @@ void dumpGamepad(ControllerPtr ctl) {
       ctl->miscSelect() ? "Select" : "------",
       ctl->miscSystem() ? "System" : "------",
       ctl->miscCapture() ? "Capture" : "------",
-      ctl->miscButtons()
+      ctl->miscButtons(),
+      ctl->axisY(),
+      ctl->axisRY()
   );
 }
 
@@ -347,22 +349,22 @@ void processGamepad(const ControllerPtr ctl) {
   if (abs(rightStickY) < 50) rightStickY = 0;
 
   // 좌측 스틱 Y축으로 좌측 트랙 전후진 제어
-  int leftTrackSpeed = map(leftStickY, -255, 255, -255, 255); // TODO. 입력 기기마다 다른 입렵 범위가 들어오는지 확인
+  int leftTrackSpeed = map(leftStickY, -512, 512, -512, 512); // TODO. 입력 기기마다 다른 입렵 범위가 들어오는지 확인
 
   // 우측 스틱 Y축으로 우측 트랙 전후진 제어
-  int rightTrackSpeed = map(rightStickY, -255, 255, -255, 255); // TODO. 입력 기기마다 다른 입렵 범위가 들어오는지 확인
+  int rightTrackSpeed = map(rightStickY, -512, 512, -512, 512); // TODO. 입력 기기마다 다른 입렵 범위가 들어오는지 확인
 
   // 속도 제한
-  leftTrackSpeed = constrain(leftTrackSpeed, -255, 255);
-  rightTrackSpeed = constrain(rightTrackSpeed, -255, 255);
+  leftTrackSpeed = constrain(leftTrackSpeed, -512, 512);
+  rightTrackSpeed = constrain(rightTrackSpeed, -512, 512);
 
   // 배율 적용
   leftTrackSpeed = static_cast<int>(leftTrackSpeed * leftTrackMultiplier);
   rightTrackSpeed = static_cast<int>(rightTrackSpeed * rightTrackMultiplier);
 
   // 최종 속도 제한
-  leftTrackSpeed = constrain(leftTrackSpeed, -255, 255);
-  rightTrackSpeed = constrain(rightTrackSpeed, -255, 255);
+  leftTrackSpeed = constrain(leftTrackSpeed, -512, 512);
+  rightTrackSpeed = constrain(rightTrackSpeed, -512, 512);
 
   // 모터 제어
   setMotorSpeed(&leftTrackMotor, leftTrackSpeed);
@@ -372,9 +374,11 @@ void processGamepad(const ControllerPtr ctl) {
   // D-PAD 좌우로 터렛 제어
   if (ctl->dpad() == DPAD_LEFT) {
     turretAngle = constrain(turretAngle - 2, 0, 180);
+    ESP_LOGD(MAIN_TAG, "Turret - Left(%3d)", turretAngle);
     turretServo.write(turretAngle);
   } else if (ctl->dpad() == DPAD_RIGHT) {
     turretAngle = constrain(turretAngle + 2, 0, 180);
+    ESP_LOGD(MAIN_TAG, "Turret - Right(%3d)", turretAngle);
     turretServo.write(turretAngle);
   }
 
@@ -388,7 +392,8 @@ void processGamepad(const ControllerPtr ctl) {
   if (buttonB && !cannonFiring && !machineGunFiring) {
     cannonFiring = true;
     cannonStartTime = millis();
-    ledBlinking = true;
+
+    digitalWrite(CANNON_LED_PIN, HIGH);
 
     // 게임 패드 진동
     ctl->playDualRumble(0, 400, 0xFF, 0x0);
@@ -403,7 +408,6 @@ void processGamepad(const ControllerPtr ctl) {
   if (buttonA && !machineGunFiring && !cannonFiring) {
     machineGunFiring = true;
     machineGunStartTime = millis();
-    ledBlinking = true;
 
     // 게임 패드 진동
     ctl->playDualRumble(0, 300, 0xFF, 0x0);
@@ -600,7 +604,6 @@ void processCannonFiring() {
 
       // 기관총이 발사 중이 아닌 경우에만 LED 점멸 중단
       if (!machineGunFiring) {
-        ledBlinking = false;
         digitalWrite(CANNON_LED_PIN, LOW);
       }
 
@@ -625,7 +628,6 @@ void processMachineGunFiring() {
 
       // 포신이 발사 중이 아닌 경우에만 LED 점멸 중단
       if (!cannonFiring) {
-        ledBlinking = false;
         digitalWrite(CANNON_LED_PIN, LOW);
       }
 
@@ -633,27 +635,6 @@ void processMachineGunFiring() {
       if (!gamepadConnected && !cannonFiring) {
         myDFPlayer.play(SOUND_IDLE);
         lastIdleSoundTime = millis();
-      }
-    }
-  }
-}
-
-// LED 깜빡임 처리
-void processLEDBlinking() {
-  if (ledBlinking) {
-    const unsigned long currentTime = millis();
-
-    // 기관총 발사 중일 때는 500ms 간격으로 점멸
-    if (machineGunFiring) {
-      if (currentTime - lastBlinkTime >= 500) {
-        digitalWrite(CANNON_LED_PIN, !digitalRead(CANNON_LED_PIN));
-        lastBlinkTime = currentTime;
-      }
-    } else {
-      // 포신 발사 중일 때는 기존 100ms 간격으로 점멸
-      if (currentTime - lastBlinkTime >= blinkInterval) {
-        digitalWrite(CANNON_LED_PIN, !digitalRead(CANNON_LED_PIN));
-        lastBlinkTime = currentTime;
       }
     }
   }
@@ -681,8 +662,36 @@ void processControllers() {
   }
 }
 
+int get_value() {
+  return CANNON_LED_PIN;
+}
+
 // 설정 함수
 void setup() {
+
+  // 핀 모드 설정
+  pinMode(LEFT_TRACK_IN1, OUTPUT);
+  pinMode(LEFT_TRACK_IN2, OUTPUT);
+  pinMode(RIGHT_TRACK_IN1, OUTPUT);
+  pinMode(RIGHT_TRACK_IN2, OUTPUT);
+  pinMode(get_value(), OUTPUT);
+  pinMode(HEADLIGHT_PIN, OUTPUT);
+
+  // LEDC 초기화 (트랙 모터용)
+  ledcSetup(LEDC_CH_LEFT_IN1, LEDC_FREQ, LEDC_RESOLUTION);
+  ledcAttachPin(LEFT_TRACK_IN1, LEDC_CH_LEFT_IN1);
+  ledcSetup(LEDC_CH_LEFT_IN2, LEDC_FREQ, LEDC_RESOLUTION);
+  ledcAttachPin(LEFT_TRACK_IN2, LEDC_CH_LEFT_IN2);
+
+  ledcSetup(LEDC_CH_RIGHT_IN1, LEDC_FREQ, LEDC_RESOLUTION);
+  ledcAttachPin(RIGHT_TRACK_IN1, LEDC_CH_RIGHT_IN1);
+  ledcSetup(LEDC_CH_RIGHT_IN2, LEDC_FREQ, LEDC_RESOLUTION);
+  ledcAttachPin(RIGHT_TRACK_IN2, LEDC_CH_RIGHT_IN2);
+
+  // 모터 정지
+  setMotorSpeed(&leftTrackMotor, 0);
+  setMotorSpeed(&rightTrackMotor, 0);
+
 #if ARDUINO_USB_CDC_ON_BOOT
   Serial.begin(115200);
   delay(2000); // USB CDC 초기화를 위한 충분한 대기 시간
@@ -704,28 +713,6 @@ void setup() {
   // EEPROM 초기화
   // EEPROM.begin(512);
 
-  // 핀 모드 설정
-  pinMode(LEFT_TRACK_IN1, OUTPUT);
-  pinMode(LEFT_TRACK_IN2, OUTPUT);
-  pinMode(RIGHT_TRACK_IN1, OUTPUT);
-  pinMode(RIGHT_TRACK_IN2, OUTPUT);
-  pinMode(CANNON_LED_PIN, OUTPUT);
-  pinMode(HEADLIGHT_PIN, OUTPUT);
-
-  // LEDC 초기화 (트랙 모터용)
-  ledcSetup(LEDC_CH_LEFT_IN1, LEDC_FREQ, LEDC_RESOLUTION);
-  ledcAttachPin(LEFT_TRACK_IN1, LEDC_CH_LEFT_IN1);
-  ledcSetup(LEDC_CH_LEFT_IN2, LEDC_FREQ, LEDC_RESOLUTION);
-  ledcAttachPin(LEFT_TRACK_IN2, LEDC_CH_LEFT_IN2);
-
-  ledcSetup(LEDC_CH_RIGHT_IN1, LEDC_FREQ, LEDC_RESOLUTION);
-  ledcAttachPin(RIGHT_TRACK_IN1, LEDC_CH_RIGHT_IN1);
-  ledcSetup(LEDC_CH_RIGHT_IN2, LEDC_FREQ, LEDC_RESOLUTION);
-  ledcAttachPin(RIGHT_TRACK_IN2, LEDC_CH_RIGHT_IN2);
-
-  // 모터 정지
-  setMotorSpeed(&leftTrackMotor, 0);
-  setMotorSpeed(&rightTrackMotor, 0);
   // 터렛 제어 제거됨
   // 터렛 서보 초기화 및 초기 각도 설정
   turretServo.attach(TURRET_SERVO_PIN);
@@ -791,9 +778,6 @@ void loop() {
 
   // 기관총 발사 처리
   processMachineGunFiring();
-
-  // LED 깜빡임 처리
-  processLEDBlinking();
 
   // 효과음 반복 재생 처리
   processIdleSound();
