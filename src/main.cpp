@@ -110,6 +110,15 @@ bool cannonFiring = false;
 unsigned long cannonStartTime = 0;
 constexpr unsigned long cannonDuration = 200; // 200ms 동안 포신 당김
 
+// 리코일(발사 반동) 관련 변수
+bool recoilActive = false;
+unsigned long recoilStartTime = 0;
+constexpr unsigned long recoilBackDuration = 150;   // 강한 후진 구간
+constexpr unsigned long recoilSettleDuration = 120; // 정지 후 안정화 구간
+int savedLeftTrackSpeedForRecoil = 0;
+int savedRightTrackSpeedForRecoil = 0;
+int recoilBackSpeed = -400; // 후진 강도 (-512 ~ 0)
+
 // 기관총 발사 관련 변수
 bool machineGunFiring = false;
 unsigned long machineGunStartTime = 0;
@@ -366,9 +375,11 @@ void processGamepad(const ControllerPtr ctl) {
   leftTrackSpeed = constrain(leftTrackSpeed, -512, 512);
   rightTrackSpeed = constrain(rightTrackSpeed, -512, 512);
 
-  // 모터 제어
-  setMotorSpeed(&leftTrackMotor, leftTrackSpeed);
-  setMotorSpeed(&rightTrackMotor, rightTrackSpeed);
+  // 모터 제어 (리코일 중에는 사용자 입력에 의한 모터 제어를 잠시 무시)
+  if (!recoilActive) {
+    setMotorSpeed(&leftTrackMotor, leftTrackSpeed);
+    setMotorSpeed(&rightTrackMotor, rightTrackSpeed);
+  }
 
   // D-PAD로 터렛과 포 마운트 제어
   // D-PAD 좌우로 터렛 제어
@@ -399,6 +410,14 @@ void processGamepad(const ControllerPtr ctl) {
     ctl->playDualRumble(0, 400, 0xFF, 0x0);
 
     // 서보 제거됨
+
+    // 리코일 시작: 현재 속도 저장 후 강한 후진 적용
+    recoilActive = true;
+    recoilStartTime = cannonStartTime;
+    savedLeftTrackSpeedForRecoil = prevLeftTrackSpeed;
+    savedRightTrackSpeedForRecoil = prevRightTrackSpeed;
+    setMotorSpeed(&leftTrackMotor, recoilBackSpeed);
+    setMotorSpeed(&rightTrackMotor, recoilBackSpeed);
 
     // 효과음 2 재생
     myDFPlayer.play(SOUND_CANNON);
@@ -640,6 +659,33 @@ void processMachineGunFiring() {
   }
 }
 
+// 리코일 처리
+void processRecoil() {
+  if (!recoilActive) return;
+
+  const unsigned long now = millis();
+  const unsigned long elapsed = now - recoilStartTime;
+
+  if (elapsed < recoilBackDuration) {
+    // 강한 후진 유지
+    setMotorSpeed(&leftTrackMotor, recoilBackSpeed);
+    setMotorSpeed(&rightTrackMotor, recoilBackSpeed);
+    return;
+  }
+
+  if (elapsed < recoilBackDuration + recoilSettleDuration) {
+    // 정지 상태로 안정화
+    setMotorSpeed(&leftTrackMotor, 0);
+    setMotorSpeed(&rightTrackMotor, 0);
+    return;
+  }
+
+  // 리코일 종료: 원래 속도로 복원
+  recoilActive = false;
+  setMotorSpeed(&leftTrackMotor, savedLeftTrackSpeedForRecoil);
+  setMotorSpeed(&rightTrackMotor, savedRightTrackSpeedForRecoil);
+}
+
 // 효과음 반복 재생 처리
 void processIdleSound() {
   if (!gamepadConnected && !cannonFiring && !machineGunFiring) {
@@ -778,6 +824,9 @@ void loop() {
 
   // 기관총 발사 처리
   processMachineGunFiring();
+
+  // 리코일 처리
+  processRecoil();
 
   // 효과음 반복 재생 처리
   processIdleSound();
