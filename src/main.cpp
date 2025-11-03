@@ -113,11 +113,11 @@ constexpr unsigned long cannonDuration = 200; // 200ms 동안 포신 당김
 // 리코일(발사 반동) 관련 변수
 bool recoilActive = false;
 unsigned long recoilStartTime = 0;
-constexpr unsigned long recoilBackDuration = 150;   // 강한 후진 구간
-constexpr unsigned long recoilSettleDuration = 120; // 정지 후 안정화 구간
+constexpr unsigned long recoilBackDuration = 100;   // 강한 후진 구간
+constexpr unsigned long recoilSettleDuration = 80; // 정지 후 안정화 구간
 int savedLeftTrackSpeedForRecoil = 0;
 int savedRightTrackSpeedForRecoil = 0;
-int recoilBackSpeed = -400; // 후진 강도 (-512 ~ 0)
+int recoilBackSpeed = 400; // 후진 강도 (-512 ~ 0)
 
 // 기관총 발사 관련 변수
 bool machineGunFiring = false;
@@ -708,10 +708,6 @@ void processControllers() {
   }
 }
 
-int get_value() {
-  return CANNON_LED_PIN;
-}
-
 // 설정 함수
 void setup() {
 
@@ -720,7 +716,13 @@ void setup() {
   pinMode(LEFT_TRACK_IN2, OUTPUT);
   pinMode(RIGHT_TRACK_IN1, OUTPUT);
   pinMode(RIGHT_TRACK_IN2, OUTPUT);
-  pinMode(get_value(), OUTPUT);
+
+  digitalWrite(LEFT_TRACK_IN1, LOW);
+  digitalWrite(LEFT_TRACK_IN2, LOW);
+  digitalWrite(RIGHT_TRACK_IN1, LOW);
+  digitalWrite(RIGHT_TRACK_IN2, LOW);
+
+  pinMode(CANNON_LED_PIN, OUTPUT);
   pinMode(HEADLIGHT_PIN, OUTPUT);
 
   // LEDC 초기화 (트랙 모터용)
