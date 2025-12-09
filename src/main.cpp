@@ -13,10 +13,10 @@ static auto MAIN_TAG = "RC_TANK";
 #define DFPLAYER_TX 10 // dfplayer RX
 #define LEFT_TRACK_IN1 4
 #define LEFT_TRACK_IN2 3
-#define RIGHT_TRACK_IN1 6
+#define RIGHT_TRACK_IN1 0
 #define RIGHT_TRACK_IN2 5
 #define CANNON_LED_PIN 1
-#define HEADLIGHT_PIN 0
+#define HEADLIGHT_PIN 6
 #define TURRET_SERVO_PIN 7   // 터렛 회전 SG90 서보 핀
 
 // LEDC 설정 (트랙 모터용)
@@ -113,7 +113,7 @@ constexpr unsigned long cannonDuration = 200; // 200ms 동안 포신 당김
 // 리코일(발사 반동) 관련 변수
 bool recoilActive = false;
 unsigned long recoilStartTime = 0;
-constexpr unsigned long recoilBackDuration = 100;   // 강한 후진 구간
+constexpr unsigned long recoilBackDuration = 100; // 강한 후진 구간
 constexpr unsigned long recoilSettleDuration = 80; // 정지 후 안정화 구간
 int savedLeftTrackSpeedForRecoil = 0;
 int savedRightTrackSpeedForRecoil = 0;
@@ -323,25 +323,25 @@ void resetEEPROMAndRestart() {
 
 void dumpGamepad(ControllerPtr ctl) {
   ESP_LOGD(MAIN_TAG,
-      "0x%02x %s %s %s %s %s %s %s %s %s %s %s %s %s %s misc: 0x%02x LY:%3d RY:%3d",
-      ctl->dpad(),
-      ctl->a() ? "A" : "-",
-      ctl->b() ? "B" : "-",
-      ctl->x() ? "X" : "-",
-      ctl->y() ? "Y" : "-",
-      ctl->l1() ? "L1" : "--",
-      ctl->r1() ? "R1" : "--",
-      ctl->l2() ? "L2" : "--",
-      ctl->r2() ? "R2" : "--",
-      ctl->thumbL() ? "ThumbL" : "------",
-      ctl->thumbR() ? "ThumbR" : "------",
-      ctl->miscStart() ? "Start" : "------",
-      ctl->miscSelect() ? "Select" : "------",
-      ctl->miscSystem() ? "System" : "------",
-      ctl->miscCapture() ? "Capture" : "------",
-      ctl->miscButtons(),
-      ctl->axisY(),
-      ctl->axisRY()
+           "0x%02x %s %s %s %s %s %s %s %s %s %s %s %s %s %s misc: 0x%02x LY:%3d RY:%3d",
+           ctl->dpad(),
+           ctl->a() ? "A" : "-",
+           ctl->b() ? "B" : "-",
+           ctl->x() ? "X" : "-",
+           ctl->y() ? "Y" : "-",
+           ctl->l1() ? "L1" : "--",
+           ctl->r1() ? "R1" : "--",
+           ctl->l2() ? "L2" : "--",
+           ctl->r2() ? "R2" : "--",
+           ctl->thumbL() ? "ThumbL" : "------",
+           ctl->thumbR() ? "ThumbR" : "------",
+           ctl->miscStart() ? "Start" : "------",
+           ctl->miscSelect() ? "Select" : "------",
+           ctl->miscSystem() ? "System" : "------",
+           ctl->miscCapture() ? "Capture" : "------",
+           ctl->miscButtons(),
+           ctl->axisY(),
+           ctl->axisRY()
   );
 }
 
@@ -569,7 +569,8 @@ void processGamepad(const ControllerPtr ctl) {
       if (millis() - l1r1StartTime >= l1r1HoldDuration) {
         buttonSwapEnabled = !buttonSwapEnabled;
 
-        ESP_LOGI(MAIN_TAG, "L1 + R1 버튼을 3초간 누르셨습니다. 버튼 스왑: %s",
+        ESP_LOGI(MAIN_TAG,
+                 "L1 + R1 버튼을 3초간 누르셨습니다. 버튼 스왑: %s",
                  buttonSwapEnabled ? "활성화" : "비활성화");
 
         // 게임패드 진동으로 확인 신호
@@ -710,7 +711,6 @@ void processControllers() {
 
 // 설정 함수
 void setup() {
-
   // 핀 모드 설정
   pinMode(LEFT_TRACK_IN1, OUTPUT);
   pinMode(LEFT_TRACK_IN2, OUTPUT);
