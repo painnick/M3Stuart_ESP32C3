@@ -2,7 +2,6 @@
 #include <Bluepad32.h>
 #include <DFPlayerMini_Fast.h>
 #include <ESP32Servo.h>
-// #include <EEPROM.h>
 #include <esp_log.h>
 #include <driver/ledc.h>
 
@@ -39,17 +38,7 @@ typedef struct {
   int in2Pin;
   int channelA; // IN1에 매핑된 LEDC 채널
   int channelB; // IN2에 매핑된 LEDC 채널
-  int *prevSpeed;
 } MotorConfig;
-
-// EEPROM 주소
-// #define EEPROM_LEFT_SPEED_ADDR 0
-// #define EEPROM_RIGHT_SPEED_ADDR 1
-// #define EEPROM_BUTTON_SWAP_FLAG_ADDR 2
-// #define EEPROM_VOLUME_ADDR 4
-
-// EEPROM 초기화 플래그
-// #define EEPROM_INIT_FLAG_ADDR 5
 
 // 게임패드 관련 변수
 ControllerPtr myControllers[BP32_MAX_GAMEPADS];
@@ -65,23 +54,12 @@ constexpr unsigned long idleSoundInterval = 13000; // 13초마다 효과음 1 �
 Servo turretServo;
 
 // 모터 제어 변수
-float leftTrackMultiplier = 1.0; // 좌측 트랙 속도 배율 (0.1~2.0)
-float rightTrackMultiplier = 1.0; // 우측 트랙 속도 배율 (0.1~2.0)
-int leftTrackPWM = 0; // 미사용 변수 (추후 필요 없으면 제거 가능)
-int rightTrackPWM = 0; // 미사용 변수 (추후 필요 없으면 제거 가능)
 int turretAngle = 90; // 터렛 기본 각도
-
-// 버튼 스왑 설정
-bool buttonSwapEnabled = false; // A/B, X/Y 버튼 스왑 여부
 
 // 볼륨 제어 변수
 int currentVolume = 20; // 현재 볼륨 (1-30)
 int tempVolume = 20; // 임시 볼륨 (버튼을 누르고 있는 동안 사용)
 bool volumeChanged = false; // 볼륨이 변경되었는지 확인
-
-// DC 모터 이전 속도 값 저장 변수
-int prevLeftTrackSpeed = 0;
-int prevRightTrackSpeed = 0;
 
 // 모터 설정 구조체 인스턴스
 MotorConfig leftTrackMotor = {
@@ -89,7 +67,6 @@ MotorConfig leftTrackMotor = {
   .in2Pin = LEFT_TRACK_IN2,
   .channelA = LEDC_CH_LEFT_IN1,
   .channelB = LEDC_CH_LEFT_IN2,
-  .prevSpeed = &prevLeftTrackSpeed
 };
 
 MotorConfig rightTrackMotor = {
@@ -97,7 +74,6 @@ MotorConfig rightTrackMotor = {
   .in2Pin = RIGHT_TRACK_IN2,
   .channelA = LEDC_CH_RIGHT_IN1,
   .channelB = LEDC_CH_RIGHT_IN2,
-  .prevSpeed = &prevRightTrackSpeed
 };
 
 // LED 상태
@@ -115,8 +91,6 @@ bool recoilActive = false;
 unsigned long recoilStartTime = 0;
 constexpr unsigned long recoilBackDuration = 100; // 강한 후진 구간
 constexpr unsigned long recoilSettleDuration = 80; // 정지 후 안정화 구간
-int savedLeftTrackSpeedForRecoil = 0;
-int savedRightTrackSpeedForRecoil = 0;
 int recoilBackSpeed = 400; // 후진 강도 (-512 ~ 0)
 
 // 기관총 발사 관련 변수
@@ -195,11 +169,6 @@ void setMotorSpeed(const MotorConfig *motor, int speed) {
     speed = 0;
   }
 
-  // 속도 변화가 없으면 호출 무시
-  if (speed == *(motor->prevSpeed)) {
-    return;
-  }
-
   ESP_LOGD(MAIN_TAG,
            "setMotorSpeed IN1:%d IN2:%d ChA:%d ChB:%d Speed:%d (prev:%d)",
            motor->in1Pin,
@@ -223,102 +192,6 @@ void setMotorSpeed(const MotorConfig *motor, int speed) {
     ledcWrite(motor->channelA, 0);
     ledcWrite(motor->channelB, 0);
   }
-
-  // 현재 속도를 이전 속도로 저장
-  *(motor->prevSpeed) = speed;
-}
-
-// 터렛 서보 관련 함수 없음: 간단히 write 사용
-
-// EEPROM에서 속도 배율 값 읽기
-void loadSpeedSettings() {
-  // EEPROM에서 배율 값을 읽기 (0.1~2.0 범위를 10~200으로 저장)
-  // int leftMultiplierInt = EEPROM.read(EEPROM_LEFT_SPEED_ADDR);
-  // int rightMultiplierInt = EEPROM.read(EEPROM_RIGHT_SPEED_ADDR);
-
-  // 기본값 설정 (EEPROM이 초기화되지 않은 경우)
-  // if (leftMultiplierInt == 0 || leftMultiplierInt > 200) {
-  //   leftMultiplierInt = 100; // 1.0을 100으로 저장
-  //   EEPROM.write(EEPROM_LEFT_SPEED_ADDR, leftMultiplierInt);
-  // }
-  // if (rightMultiplierInt == 0 || rightMultiplierInt > 200) {
-  //   rightMultiplierInt = 100; // 1.0을 100으로 저장
-  //   EEPROM.write(EEPROM_RIGHT_SPEED_ADDR, rightMultiplierInt);
-  // }
-  // EEPROM.commit();
-
-  // 정수 값을 배율로 변환 (100 = 1.0)
-  // leftTrackMultiplier = leftMultiplierInt / 100.0;
-  // rightTrackMultiplier = rightMultiplierInt / 100.0;
-
-  // ESP_LOGI(MAIN_TAG, "Loaded speed multipliers: left=%.1f, right=%.1f", leftTrackMultiplier, rightTrackMultiplier);
-}
-
-// EEPROM에 속도 배율 값 저장
-void saveSpeedSettings() {
-  // 배율을 정수로 변환하여 저장 (1.0 = 100)
-  // const int leftMultiplierInt = static_cast<int>(leftTrackMultiplier * 100);
-  // const int rightMultiplierInt = static_cast<int>(rightTrackMultiplier * 100);
-
-  // EEPROM.write(EEPROM_LEFT_SPEED_ADDR, leftMultiplierInt);
-  // EEPROM.write(EEPROM_RIGHT_SPEED_ADDR, rightMultiplierInt);
-  // EEPROM.commit();
-  // ESP_LOGI(MAIN_TAG, "Speed multipliers saved: left=%.1f, right=%.1f", leftTrackMultiplier, rightTrackMultiplier);
-}
-
-// 버튼 스왑 설정 저장
-void saveButtonSwapSettings() {
-  // EEPROM.write(EEPROM_BUTTON_SWAP_FLAG_ADDR, buttonSwapEnabled ? 1 : 0);
-  // EEPROM.commit();
-  // ESP_LOGI(MAIN_TAG, "Button swap setting saved: %s", buttonSwapEnabled ? "enabled" : "disabled");
-}
-
-// 볼륨 설정 저장
-void saveVolumeSettings() {
-  // EEPROM.write(EEPROM_VOLUME_ADDR, currentVolume);
-  // EEPROM.commit();
-  // ESP_LOGI(MAIN_TAG, "Volume setting saved: %d", currentVolume);
-}
-
-// 볼륨 설정 로드
-void loadVolumeSettings() {
-  // int volume = EEPROM.read(EEPROM_VOLUME_ADDR);
-
-  // 기본값 설정 (EEPROM이 초기화되지 않은 경우)
-  // if (volume < 1 || volume > 30) {
-  //   volume = 20; // 기본 볼륨 20
-  //   EEPROM.write(EEPROM_VOLUME_ADDR, volume);
-  //   EEPROM.commit();
-  // }
-
-  // currentVolume = volume;
-  // tempVolume = volume;
-  // myDFPlayer.volume(currentVolume);
-  // ESP_LOGI(MAIN_TAG, "Volume setting loaded: %d", currentVolume);
-}
-
-// 버튼 스왑 설정 로드
-void loadButtonSwapSettings() {
-  // const int swapFlag = EEPROM.read(EEPROM_BUTTON_SWAP_FLAG_ADDR);
-  // buttonSwapEnabled = (swapFlag == 1);
-  // ESP_LOGI(MAIN_TAG, "Button swap setting loaded: %s", buttonSwapEnabled ? "enabled" : "disabled");
-}
-
-// EEPROM 초기화 및 ESP32 재시작
-void resetEEPROMAndRestart() {
-  ESP_LOGI(MAIN_TAG, "EEPROM 초기화 및 재시작 시작...");
-
-  // 모든 EEPROM 데이터 초기화
-  // for (int i = 0; i < 512; i++) {
-  //   EEPROM.write(i, 0);
-  // }
-  // EEPROM.commit();
-
-  ESP_LOGI(MAIN_TAG, "EEPROM 초기화 완료. 3초 후 재시작합니다.");
-
-  // 3초 대기 후 재시작
-  delay(3000);
-  esp_restart();
 }
 
 void dumpGamepad(ControllerPtr ctl) {
@@ -367,10 +240,6 @@ void processGamepad(const ControllerPtr ctl) {
   leftTrackSpeed = constrain(leftTrackSpeed, -512, 512);
   rightTrackSpeed = constrain(rightTrackSpeed, -512, 512);
 
-  // 배율 적용
-  leftTrackSpeed = static_cast<int>(leftTrackSpeed * leftTrackMultiplier);
-  rightTrackSpeed = static_cast<int>(rightTrackSpeed * rightTrackMultiplier);
-
   // 최종 속도 제한
   leftTrackSpeed = constrain(leftTrackSpeed, -512, 512);
   rightTrackSpeed = constrain(rightTrackSpeed, -512, 512);
@@ -381,7 +250,6 @@ void processGamepad(const ControllerPtr ctl) {
     setMotorSpeed(&rightTrackMotor, rightTrackSpeed);
   }
 
-  // D-PAD로 터렛과 포 마운트 제어
   // D-PAD 좌우로 터렛 제어
   if (ctl->dpad() == DPAD_LEFT) {
     turretAngle = constrain(turretAngle - 2, 0, 180);
@@ -393,11 +261,9 @@ void processGamepad(const ControllerPtr ctl) {
     turretServo.write(turretAngle);
   }
 
-  // 터렛(포 마운트) 각도 제어 제거됨
-
   // 버튼 스왑 적용: A/B 버튼 처리
-  const bool buttonA = buttonSwapEnabled ? ctl->b() : ctl->a();
-  const bool buttonB = buttonSwapEnabled ? ctl->a() : ctl->b();
+  const bool buttonA = ctl->a();
+  const bool buttonB = ctl->b();
 
   // B 버튼으로 포신 발사
   if (buttonB && !cannonFiring && !machineGunFiring) {
@@ -409,13 +275,9 @@ void processGamepad(const ControllerPtr ctl) {
     // 게임 패드 진동
     ctl->playDualRumble(0, 400, 0xFF, 0x0);
 
-    // 서보 제거됨
-
     // 리코일 시작: 현재 속도 저장 후 강한 후진 적용
     recoilActive = true;
     recoilStartTime = cannonStartTime;
-    savedLeftTrackSpeedForRecoil = prevLeftTrackSpeed;
-    savedRightTrackSpeedForRecoil = prevRightTrackSpeed;
     setMotorSpeed(&leftTrackMotor, recoilBackSpeed);
     setMotorSpeed(&rightTrackMotor, recoilBackSpeed);
 
@@ -496,12 +358,6 @@ void processGamepad(const ControllerPtr ctl) {
     }
   }
 
-  // 볼륨이 변경되었으면 EEPROM에 저장
-  if (volumeChanged) {
-    saveVolumeSettings();
-    volumeChanged = false;
-  }
-
   // 헤드라이트 토글 (L2 + R2 버튼으로 변경, 단일 클릭)
   static bool l2r2ButtonPressed = false;
   if (ctl->l2() && ctl->r2() && !l2r2ButtonPressed) {
@@ -510,107 +366,6 @@ void processGamepad(const ControllerPtr ctl) {
     l2r2ButtonPressed = true;
   } else if (!ctl->l2() || !ctl->r2()) {
     l2r2ButtonPressed = false;
-  }
-
-  // 버튼 스왑 적용: X/Y 버튼 처리
-  const bool buttonX = buttonSwapEnabled ? ctl->y() : ctl->x();
-  const bool buttonY = buttonSwapEnabled ? ctl->x() : ctl->y();
-
-  // X 버튼 + D-PAD Y축으로 좌측 트랙 속도 배율 설정
-  static bool xButtonPressed = false;
-  if (buttonX) {
-    if (!xButtonPressed) {
-      xButtonPressed = true;
-    }
-
-    // D-PAD 상하로 좌측 트랙 속도 배율 조절 (0.1~2.0)
-    if (ctl->dpad() == DPAD_UP) {
-      leftTrackMultiplier = constrain(leftTrackMultiplier + 0.02, 0.1, 2.0);
-      saveSpeedSettings();
-    } else if (ctl->dpad() == DPAD_DOWN) {
-      leftTrackMultiplier = constrain(leftTrackMultiplier - 0.02, 0.1, 2.0);
-      saveSpeedSettings();
-    }
-  } else {
-    xButtonPressed = false;
-  }
-
-  // Y 버튼 + D-PAD Y축으로 우측 트랙 속도 배율 설정
-  static bool yButtonPressed = false;
-  if (buttonY) {
-    if (!yButtonPressed) {
-      yButtonPressed = true;
-    }
-
-    // D-PAD 상하로 우측 트랙 속도 배율 조절 (0.1~2.0)
-    if (ctl->dpad() == DPAD_UP) {
-      rightTrackMultiplier = constrain(rightTrackMultiplier + 0.02, 0.1, 2.0);
-      saveSpeedSettings();
-    } else if (ctl->dpad() == DPAD_DOWN) {
-      rightTrackMultiplier = constrain(rightTrackMultiplier - 0.02, 0.1, 2.0);
-      saveSpeedSettings();
-    }
-  } else {
-    yButtonPressed = false;
-  }
-
-  // L1 + R1 버튼 3초 이상 동시 누름으로 버튼 스왑 토글
-  static bool l1r1Pressed = false;
-  static unsigned long l1r1StartTime = 0;
-
-  if (ctl->l1() && ctl->r1()) {
-    if (!l1r1Pressed) {
-      l1r1Pressed = true;
-      l1r1StartTime = millis();
-      ESP_LOGI(MAIN_TAG, "L1 + R1 버튼이 눌렸습니다. 3초간 유지하면 버튼 스왑이 변경됩니다.");
-    } else {
-      constexpr unsigned long l1r1HoldDuration = 3000;
-      // 버튼이 계속 눌려있는 상태에서 3초 경과 확인
-      if (millis() - l1r1StartTime >= l1r1HoldDuration) {
-        buttonSwapEnabled = !buttonSwapEnabled;
-
-        ESP_LOGI(MAIN_TAG,
-                 "L1 + R1 버튼을 3초간 누르셨습니다. 버튼 스왑: %s",
-                 buttonSwapEnabled ? "활성화" : "비활성화");
-
-        // 게임패드 진동으로 확인 신호
-        ctl->playDualRumble(0, 600, 0xFF, 0x0);
-
-        // 설정 저장
-        saveButtonSwapSettings();
-
-        // 플래그 리셋하여 중복 실행 방지
-        l1r1Pressed = false;
-      }
-    }
-  } else {
-    l1r1Pressed = false;
-  }
-
-  // Select + Start 버튼 3초 이상 동시 누름으로 EEPROM 초기화 및 재시작
-  static bool selectStartPressed = false;
-  static unsigned long selectStartStartTime = 0;
-
-  if (ctl->miscSelect() && ctl->miscStart()) {
-    if (!selectStartPressed) {
-      selectStartPressed = true;
-      selectStartStartTime = millis();
-      ESP_LOGI(MAIN_TAG, "Select + Start 버튼이 눌렸습니다. 3초간 유지하면 EEPROM 초기화가 시작됩니다.");
-    } else {
-      constexpr unsigned long selectStartHoldDuration = 3000;
-      // 버튼이 계속 눌려있는 상태에서 3초 경과 확인
-      if (millis() - selectStartStartTime >= selectStartHoldDuration) {
-        ESP_LOGI(MAIN_TAG, "Select + Start 버튼을 3초간 누르셨습니다. EEPROM 초기화를 시작합니다.");
-
-        // 게임패드 진동으로 확인 신호
-        ctl->playDualRumble(0, 800, 0xFF, 0x0);
-
-        // EEPROM 초기화 및 재시작
-        resetEEPROMAndRestart();
-      }
-    }
-  } else {
-    selectStartPressed = false;
   }
 }
 
@@ -626,8 +381,6 @@ void processCannonFiring() {
       if (!machineGunFiring) {
         digitalWrite(CANNON_LED_PIN, LOW);
       }
-
-      // 서보 제거됨
 
       // 효과음 1 재생 재개 (게임패드가 연결되어 있지 않은 경우)
       if (!gamepadConnected && !machineGunFiring) {
@@ -683,8 +436,6 @@ void processRecoil() {
 
   // 리코일 종료: 원래 속도로 복원
   recoilActive = false;
-  setMotorSpeed(&leftTrackMotor, savedLeftTrackSpeedForRecoil);
-  setMotorSpeed(&rightTrackMotor, savedRightTrackSpeedForRecoil);
 }
 
 // 효과음 반복 재생 처리
@@ -758,10 +509,6 @@ void setup() {
   // Brownout을 피하기 위해 CPU 클록을 160 MHz로 낮춤
   setCpuFrequencyMhz(160);
 
-  // EEPROM 초기화
-  // EEPROM.begin(512);
-
-  // 터렛 제어 제거됨
   // 터렛 서보 초기화 및 초기 각도 설정
   turretServo.attach(TURRET_SERVO_PIN);
   turretServo.write(turretAngle);
@@ -769,24 +516,10 @@ void setup() {
   // DFPlayer 초기화
   DFPlayerSerial.begin(9600, SERIAL_8N1, DFPLAYER_RX, DFPLAYER_TX);
   myDFPlayer.begin(DFPlayerSerial);
-  // 볼륨은 loadVolumeSettings()에서 설정됨
-
-  // EEPROM에서 설정 로드
-  // loadSpeedSettings();
-  // loadButtonSwapSettings();
-  // loadVolumeSettings();
 
   // 효과음 1 재생 시작
   myDFPlayer.play(SOUND_IDLE);
   lastIdleSoundTime = millis();
-
-  // EEPROM 초기화 플래그 확인 (첫 실행 시)
-  // const int initFlag = EEPROM.read(EEPROM_INIT_FLAG_ADDR);
-  // if (initFlag != 0xAA) {
-  //   ESP_LOGI(MAIN_TAG, "EEPROM이 초기화되지 않았습니다. 초기화 플래그를 설정합니다.");
-  //   EEPROM.write(EEPROM_INIT_FLAG_ADDR, 0xAA);
-  //   EEPROM.commit();
-  // }
 
   // Bluepad32 설정
   BP32.setup(&onConnectedController, &onDisconnectedController);
@@ -807,14 +540,8 @@ void setup() {
   ESP_LOGI(MAIN_TAG, "RC Tank Initialization Complete!");
 }
 
-unsigned long lastCheckTime = 0;
 // 메인 루프
 void loop() {
-  if (millis() - lastCheckTime >= 1000 * 10) {
-    lastCheckTime = millis();
-    ESP_LOGI(MAIN_TAG, "LOOP : Hello World");
-  }
-
   // Bluepad32 업데이트
   const bool dataUpdated = BP32.update();
   if (dataUpdated) {
