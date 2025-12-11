@@ -293,15 +293,15 @@ void processGamepad(const ControllerPtr ctl) {
     myDFPlayer.play(SOUND_MACHINEGUN);
   }
 
-  // L1 + (X 또는 Y) 버튼으로 볼륨 조절 (둔감하게 처리)
+  // L1/R1 버튼으로 볼륨 조절 (둔감하게 처리)
   static bool l1ButtonPressed = false;
   static bool r1ButtonPressed = false;
   static unsigned long l1LastChangeTime = 0;
   static unsigned long r1LastChangeTime = 0;
   constexpr unsigned long volumeChangeInterval = 100; // 100ms 간격으로 볼륨 변경
 
-  // L1 + (X 또는 Y) 버튼으로 볼륨 감소
-  if (ctl->l1() && (ctl->x() || ctl->y())) {
+  // L1 버튼으로 볼륨 감소
+  if (ctl->l1()) {
     if (!l1ButtonPressed) {
       l1ButtonPressed = true;
       tempVolume = currentVolume; // 현재 볼륨을 임시 볼륨으로 복사
@@ -327,8 +327,8 @@ void processGamepad(const ControllerPtr ctl) {
     }
   }
 
-  // R1 + (X 또는 Y) 버튼으로 볼륨 증가
-  if (ctl->r1() && (ctl->x() || ctl->y())) {
+  // R1 버튼으로 볼륨 증가
+  if (ctl->r1()) {
     if (!r1ButtonPressed) {
       r1ButtonPressed = true;
       tempVolume = currentVolume; // 현재 볼륨을 임시 볼륨으로 복사
