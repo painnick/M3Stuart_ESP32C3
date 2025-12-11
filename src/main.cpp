@@ -2,6 +2,7 @@
 #include <Bluepad32.h>
 #include <DFPlayerMini_Fast.h>
 #include <ESP32Servo.h>
+#include <Preferences.h>
 #include <esp_log.h>
 #include <driver/ledc.h>
 
@@ -47,6 +48,10 @@ bool gamepadConnected = false;
 // DFPlayer 관련 변수
 DFPlayerMini_Fast myDFPlayer;
 HardwareSerial DFPlayerSerial(1); // UART2 사용
+Preferences prefs;
+
+constexpr auto NVS_NAMESPACE = "rc_tank";
+constexpr auto NVS_KEY_VOLUME = "volume";
 unsigned long lastIdleSoundTime = 0;
 constexpr unsigned long idleSoundInterval = 13000; // 13초마다 효과음 1 재생
 
@@ -192,6 +197,26 @@ void setMotorSpeed(const MotorConfig *motor, int speed) {
     ledcWrite(motor->channelA, 0);
     ledcWrite(motor->channelB, 0);
   }
+}
+
+// NVS에서 볼륨 불러오기 (없으면 기본값 20, 범위 11~30로 클램프)
+void loadVolumeFromNVS() {
+  int stored = prefs.getInt(NVS_KEY_VOLUME, -1);
+  if (stored < 11 || stored > 30) {
+    stored = 20;
+    ESP_LOGI(MAIN_TAG, "Volume not found in NVS. Using default: %d", stored);
+  } else {
+    ESP_LOGI(MAIN_TAG, "Volume loaded from NVS: %d", stored);
+  }
+  currentVolume = stored;
+  tempVolume = stored;
+}
+
+// NVS에 볼륨 저장 (범위 11~30로 클램프)
+void saveVolumeToNVS(int volume) {
+  const int clamped = constrain(volume, 11, 30);
+  prefs.putInt(NVS_KEY_VOLUME, clamped);
+  ESP_LOGI(MAIN_TAG, "Volume saved to NVS: %d", clamped);
 }
 
 void dumpGamepad(ControllerPtr ctl) {
@@ -354,6 +379,12 @@ void processGamepad(const ControllerPtr ctl) {
     }
   }
 
+  // 볼륨 변경 시 NVS에 즉시 저장
+  if (volumeChanged) {
+    saveVolumeToNVS(currentVolume);
+    volumeChanged = false;
+  }
+
   // 헤드라이트 토글: Y 버튼을 200ms 이상 누르고 뗄 때 적용
   static bool yPressing = false;
   static unsigned long yPressStart = 0;
@@ -483,6 +514,10 @@ void setup() {
   pinMode(CANNON_LED_PIN, OUTPUT);
   pinMode(HEADLIGHT_PIN, OUTPUT);
 
+  // NVS 초기화 및 볼륨 로드
+  prefs.begin(NVS_NAMESPACE, false);
+  loadVolumeFromNVS();
+
   // LEDC 초기화 (트랙 모터용)
   ledcSetup(LEDC_CH_LEFT_IN1, LEDC_FREQ, LEDC_RESOLUTION);
   ledcAttachPin(LEFT_TRACK_IN1, LEDC_CH_LEFT_IN1);
@@ -523,6 +558,7 @@ void setup() {
   // DFPlayer 초기화
   DFPlayerSerial.begin(9600, SERIAL_8N1, DFPLAYER_RX, DFPLAYER_TX);
   myDFPlayer.begin(DFPlayerSerial);
+  myDFPlayer.volume(currentVolume);
 
   // 효과음 1 재생 시작
   myDFPlayer.play(SOUND_IDLE);
