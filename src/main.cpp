@@ -266,7 +266,7 @@ void processGamepad(const ControllerPtr ctl) {
   const bool buttonB = ctl->b();
 
   // B 버튼으로 포신 발사
-  if (buttonB && !cannonFiring && !machineGunFiring) {
+  if (buttonB && !cannonFiring && !machineGunFiring && !recoilActive) {
     cannonFiring = true;
     cannonStartTime = millis();
 
