@@ -261,12 +261,8 @@ void processGamepad(const ControllerPtr ctl) {
     turretServo.write(turretAngle);
   }
 
-  // 버튼 스왑 적용: A/B 버튼 처리
-  const bool buttonA = ctl->a();
-  const bool buttonB = ctl->b();
-
   // B 버튼으로 포신 발사
-  if (buttonB && !cannonFiring && !machineGunFiring && !recoilActive) {
+  if (ctl->b() && !cannonFiring && !machineGunFiring && !recoilActive) {
     cannonFiring = true;
     cannonStartTime = millis();
 
@@ -286,7 +282,7 @@ void processGamepad(const ControllerPtr ctl) {
   }
 
   // A 버튼으로 기관총 발사
-  if (buttonA && !machineGunFiring && !cannonFiring) {
+  if (ctl->a() && !machineGunFiring && !cannonFiring) {
     machineGunFiring = true;
     machineGunStartTime = millis();
 
