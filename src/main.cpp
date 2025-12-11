@@ -354,14 +354,25 @@ void processGamepad(const ControllerPtr ctl) {
     }
   }
 
-  // 헤드라이트 토글 (L2 + R2 버튼으로 변경, 단일 클릭)
-  static bool l2r2ButtonPressed = false;
-  if (ctl->l2() && ctl->r2() && !l2r2ButtonPressed) {
-    headlightOn = !headlightOn;
-    digitalWrite(HEADLIGHT_PIN, headlightOn ? HIGH : LOW);
-    l2r2ButtonPressed = true;
-  } else if (!ctl->l2() || !ctl->r2()) {
-    l2r2ButtonPressed = false;
+  // 헤드라이트 토글: Y 버튼을 200ms 이상 누르고 뗄 때 적용
+  static bool yPressing = false;
+  static unsigned long yPressStart = 0;
+  constexpr unsigned long headlightHoldMs = 200;
+
+  if (ctl->y()) {
+    if (!yPressing) {
+      yPressing = true;
+      yPressStart = millis();
+    }
+  } else {
+    if (yPressing) {
+      yPressing = false;
+      const unsigned long held = millis() - yPressStart;
+      if (held >= headlightHoldMs) {
+        headlightOn = !headlightOn;
+        digitalWrite(HEADLIGHT_PIN, headlightOn ? HIGH : LOW);
+      }
+    }
   }
 }
 
