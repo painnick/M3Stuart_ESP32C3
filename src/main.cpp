@@ -308,8 +308,8 @@ void processGamepad(const ControllerPtr ctl) {
       l1LastChangeTime = millis();
     }
 
-    // 볼륨 감소 (1-30 범위, 100ms 간격으로만 변경)
-    if (tempVolume > 1 && (millis() - l1LastChangeTime >= volumeChangeInterval)) {
+    // 볼륨 감소 (10-30 범위, 100ms 간격으로만 변경)
+    if (tempVolume > 11 && (millis() - l1LastChangeTime >= volumeChangeInterval)) {
       tempVolume--;
       l1LastChangeTime = millis();
       ESP_LOGI(MAIN_TAG, "Volume decreased to: %d", tempVolume);
@@ -335,7 +335,7 @@ void processGamepad(const ControllerPtr ctl) {
       r1LastChangeTime = millis();
     }
 
-    // 볼륨 증가 (1-30 범위, 100ms 간격으로만 변경)
+    // 볼륨 증가 (10-30 범위, 100ms 간격으로만 변경)
     if (tempVolume < 30 && (millis() - r1LastChangeTime >= volumeChangeInterval)) {
       tempVolume++;
       r1LastChangeTime = millis();
