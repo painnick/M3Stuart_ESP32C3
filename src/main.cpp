@@ -109,6 +109,38 @@ constexpr unsigned long machineGunDuration = 1000; // 1초간 기관총 발사
 #define SOUND_MACHINEGUN 3
 #define SOUND_CONNECTED 4
 
+// DC 모터 제어 함수 (LEDC 사용, 속도 변화가 없으면 호출 무시)
+void setMotorSpeed(const MotorConfig *motor, int speed) {
+  // 최소 속도 임계값 적용
+  if (abs(speed) < MOTOR_MIN_SPEED_THRESHOLD) {
+    speed = 0;
+  }
+
+  ESP_LOGD(MAIN_TAG,
+           "setMotorSpeed IN1:%d IN2:%d ChA:%d ChB:%d Speed:%d (prev:%d)",
+           motor->in1Pin,
+           motor->in2Pin,
+           motor->channelA,
+           motor->channelB,
+           speed,
+           *(motor->prevSpeed));
+
+  // LEDC는 8비트 해상도 사용: 듀티 0~512
+  if (speed > 0) {
+    // 정방향 회전
+    ledcWrite(motor->channelA, 512 /* speed */);
+    ledcWrite(motor->channelB, 0);
+  } else if (speed < 0) {
+    // 역방향 회전
+    ledcWrite(motor->channelA, 0);
+    ledcWrite(motor->channelB, 512 /* speed */);
+  } else {
+    // 정지
+    ledcWrite(motor->channelA, 0);
+    ledcWrite(motor->channelB, 0);
+  }
+}
+
 // 게임패드 연결 콜백
 void onConnectedController(const ControllerPtr ctl) {
   bool foundEmptySlot = false;
@@ -160,42 +192,15 @@ void onDisconnectedController(ControllerPtr ctl) {
     // 모든 게임패드가 연결 해제되면 효과음 1 재생 시작
     myDFPlayer.play(SOUND_IDLE);
     lastIdleSoundTime = millis();
+
+    setMotorSpeed(&leftTrackMotor, 0);
+    setMotorSpeed(&rightTrackMotor, 0);
+
+    digitalWrite(HEADLIGHT_PIN, LOW);
   }
 
   if (!foundController) {
     ESP_LOGW(MAIN_TAG, "Gamepad disconnected, but not found in myControllers");
-  }
-}
-
-// DC 모터 제어 함수 (LEDC 사용, 속도 변화가 없으면 호출 무시)
-void setMotorSpeed(const MotorConfig *motor, int speed) {
-  // 최소 속도 임계값 적용
-  if (abs(speed) < MOTOR_MIN_SPEED_THRESHOLD) {
-    speed = 0;
-  }
-
-  ESP_LOGD(MAIN_TAG,
-           "setMotorSpeed IN1:%d IN2:%d ChA:%d ChB:%d Speed:%d (prev:%d)",
-           motor->in1Pin,
-           motor->in2Pin,
-           motor->channelA,
-           motor->channelB,
-           speed,
-           *(motor->prevSpeed));
-
-  // LEDC는 8비트 해상도 사용: 듀티 0~512
-  if (speed > 0) {
-    // 정방향 회전
-    ledcWrite(motor->channelA, 512 /* speed */);
-    ledcWrite(motor->channelB, 0);
-  } else if (speed < 0) {
-    // 역방향 회전
-    ledcWrite(motor->channelA, 0);
-    ledcWrite(motor->channelB, 512 /* speed */);
-  } else {
-    // 정지
-    ledcWrite(motor->channelA, 0);
-    ledcWrite(motor->channelB, 0);
   }
 }
 
