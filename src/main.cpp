@@ -282,11 +282,11 @@ void processGamepad(const ControllerPtr ctl) {
 
   // D-PAD 좌우로 터렛 제어
   if (ctl->dpad() == DPAD_LEFT) {
-    turretAngle = constrain(turretAngle - 2, 0, 180);
+    turretAngle = constrain(turretAngle - 1, 0, 180);
     ESP_LOGD(MAIN_TAG, "Turret - Left(%3d)", turretAngle);
     turretServo.write(turretAngle);
   } else if (ctl->dpad() == DPAD_RIGHT) {
-    turretAngle = constrain(turretAngle + 2, 0, 180);
+    turretAngle = constrain(turretAngle + 1, 0, 180);
     ESP_LOGD(MAIN_TAG, "Turret - Right(%3d)", turretAngle);
     turretServo.write(turretAngle);
   }
