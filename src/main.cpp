@@ -89,7 +89,7 @@ constexpr unsigned long blinkInterval = 100; // 100ms 간격으로 깜빡임
 // 포신 발사 관련 변수
 bool cannonFiring = false;
 unsigned long cannonStartTime = 0;
-constexpr unsigned long cannonDuration = 200; // 200ms 동안 포신 당김
+constexpr unsigned long cannonDuration = 1000; // 200ms 동안 포신 당김
 
 // 리코일(발사 반동) 관련 변수
 bool recoilActive = false;
@@ -101,7 +101,7 @@ int recoilBackSpeed = 400; // 후진 강도 (-512 ~ 0)
 // 기관총 발사 관련 변수
 bool machineGunFiring = false;
 unsigned long machineGunStartTime = 0;
-constexpr unsigned long machineGunDuration = 1000; // 1초간 기관총 발사
+constexpr unsigned long machineGunDuration = 500; // 1초간 기관총 발사
 
 // 효과음 파일 번호
 #define SOUND_IDLE 1
@@ -306,6 +306,12 @@ void processGamepad(const ControllerPtr ctl) {
     recoilStartTime = cannonStartTime;
     setMotorSpeed(&leftTrackMotor, recoilBackSpeed);
     setMotorSpeed(&rightTrackMotor, recoilBackSpeed);
+
+    delay(100);
+    digitalWrite(CANNON_LED_PIN, LOW);
+
+    setMotorSpeed(&leftTrackMotor, 0);
+    setMotorSpeed(&rightTrackMotor, 0);
 
     // 효과음 2 재생
     myDFPlayer.play(SOUND_CANNON);
