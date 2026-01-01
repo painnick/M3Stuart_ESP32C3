@@ -5,6 +5,7 @@
 #include <Preferences.h>
 #include <esp_log.h>
 #include <driver/ledc.h>
+#include <WiFi.h>
 
 static auto MAIN_TAG = "RC_TANK";
 
@@ -62,6 +63,7 @@ Servo turretServo;
 int turretAngle = 90; // 터렛 기본 각도
 
 // 볼륨 제어 변수
+constexpr int initialVolume = 15;
 int currentVolume = 20; // 현재 볼륨 (1-30)
 int tempVolume = 20; // 임시 볼륨 (버튼을 누르고 있는 동안 사용)
 bool volumeChanged = false; // 볼륨이 변경되었는지 확인
@@ -143,6 +145,9 @@ void setMotorSpeed(const MotorConfig *motor, int speed) {
 
 // 게임패드 연결 콜백
 void onConnectedController(const ControllerPtr ctl) {
+
+  myDFPlayer.volume(currentVolume);
+
   bool foundEmptySlot = false;
   for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
     if (myControllers[i] == nullptr) {
@@ -189,6 +194,8 @@ void onDisconnectedController(ControllerPtr ctl) {
   }
 
   if (!gamepadConnected) {
+    myDFPlayer.volume(initialVolume);
+
     // 모든 게임패드가 연결 해제되면 효과음 1 재생 시작
     myDFPlayer.play(SOUND_IDLE);
     lastIdleSoundTime = millis();
@@ -511,6 +518,11 @@ void processControllers() {
 
 // 설정 함수
 void setup() {
+  WiFi.mode(WIFI_OFF);
+
+  // 캐패시터 충전 시간?
+  delay(5000);
+
   // 핀 모드 설정
   pinMode(LEFT_TRACK_IN1, OUTPUT);
   pinMode(LEFT_TRACK_IN2, OUTPUT);
@@ -559,8 +571,8 @@ void setup() {
   Serial.println("Hello World");
 #endif
 
-  // Brownout을 피하기 위해 CPU 클록을 160 MHz로 낮춤
-  setCpuFrequencyMhz(160);
+  // Brownout을 피하기 위해 CPU 클록을 80 MHz로 낮춤
+  setCpuFrequencyMhz(80);
 
   // 터렛 서보 초기화 및 초기 각도 설정
   turretServo.attach(TURRET_SERVO_PIN);
@@ -569,7 +581,7 @@ void setup() {
   // DFPlayer 초기화
   DFPlayerSerial.begin(9600, SERIAL_8N1, DFPLAYER_RX, DFPLAYER_TX);
   myDFPlayer.begin(DFPlayerSerial);
-  myDFPlayer.volume(currentVolume);
+  myDFPlayer.volume(initialVolume);
 
   // 효과음 1 재생 시작
   myDFPlayer.play(SOUND_IDLE);
