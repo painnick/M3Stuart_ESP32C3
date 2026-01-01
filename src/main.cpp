@@ -299,7 +299,7 @@ void processGamepad(const ControllerPtr ctl) {
     digitalWrite(CANNON_LED_PIN, HIGH);
 
     // 게임 패드 진동
-    ctl->playDualRumble(0, 400, 0xFF, 0x0);
+    // ctl->playDualRumble(0, 400, 0xFF, 0x0);
 
     // 리코일 시작: 현재 속도 저장 후 강한 후진 적용
     recoilActive = true;
@@ -323,7 +323,7 @@ void processGamepad(const ControllerPtr ctl) {
     machineGunStartTime = millis();
 
     // 게임 패드 진동
-    ctl->playDualRumble(0, 300, 0xFF, 0x0);
+    // ctl->playDualRumble(0, 300, 0xFF, 0x0);
 
     // 효과음 3 재생
     myDFPlayer.play(SOUND_MACHINEGUN);
