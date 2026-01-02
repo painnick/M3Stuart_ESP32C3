@@ -119,13 +119,12 @@ void setMotorSpeed(const MotorConfig *motor, int speed) {
   }
 
   ESP_LOGD(MAIN_TAG,
-           "setMotorSpeed IN1:%d IN2:%d ChA:%d ChB:%d Speed:%d (prev:%d)",
+           "setMotorSpeed IN1:%d IN2:%d ChA:%d ChB:%d Speed:%d",
            motor->in1Pin,
            motor->in2Pin,
            motor->channelA,
            motor->channelB,
-           speed,
-           *(motor->prevSpeed));
+           speed);
 
   // LEDC는 8비트 해상도 사용: 듀티 0~512
   if (speed > 0) {
@@ -145,20 +144,21 @@ void setMotorSpeed(const MotorConfig *motor, int speed) {
 
 // 게임패드 연결 콜백
 void onConnectedController(const ControllerPtr ctl) {
-
   myDFPlayer.volume(currentVolume);
 
   bool foundEmptySlot = false;
-  for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
-    if (myControllers[i] == nullptr) {
-      ESP_LOGI(MAIN_TAG, "Gamepad connected, index=%d", i);
-      ControllerProperties properties = ctl->getProperties();
+  for (auto & myController : myControllers) {
+    if (myController == nullptr) {
+#ifdef USE_LOG
+      ESP_LOGI(MAIN_TAG, "Gamepad connected");
+      const ControllerProperties properties = ctl->getProperties();
       ESP_LOGI(MAIN_TAG,
                "Controller model: %s, VID=0x%04x, PID=0x%04x",
                ctl->getModelName().c_str(),
                properties.vendor_id,
                properties.product_id);
-      myControllers[i] = ctl;
+#endif
+      myController = ctl;
       foundEmptySlot = true;
       gamepadConnected = true;
 
@@ -177,10 +177,10 @@ void onConnectedController(const ControllerPtr ctl) {
 // 게임패드 연결 해제 콜백
 void onDisconnectedController(ControllerPtr ctl) {
   bool foundController = false;
-  for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
-    if (myControllers[i] == ctl) {
-      ESP_LOGI(MAIN_TAG, "Gamepad disconnected, index=%d", i);
-      myControllers[i] = nullptr;
+  for (auto & myController : myControllers) {
+    if (myController == ctl) {
+      ESP_LOGI(MAIN_TAG, "Gamepad disconnected");
+      myController = nullptr;
       foundController = true;
       break;
     }
@@ -188,8 +188,8 @@ void onDisconnectedController(ControllerPtr ctl) {
 
   // 모든 게임패드가 연결 해제되었는지 확인
   gamepadConnected = false;
-  for (int i = 0; i < BP32_MAX_GAMEPADS; i++) {
-    if (myControllers[i] != nullptr) {
+  for (auto & myController : myControllers) {
+    if (myController != nullptr) {
       gamepadConnected = true;
       break;
     }
@@ -272,10 +272,10 @@ void processGamepad(const ControllerPtr ctl) {
   if (abs(rightStickY) < 50) rightStickY = 0;
 
   // 좌측 스틱 Y축으로 좌측 트랙 전후진 제어
-  int leftTrackSpeed = map(leftStickY, -512, 512, -512, 512); // TODO. 입력 기기마다 다른 입렵 범위가 들어오는지 확인
+  int leftTrackSpeed = map(leftStickY, -512, 512, -512, 512);
 
   // 우측 스틱 Y축으로 우측 트랙 전후진 제어
-  int rightTrackSpeed = map(rightStickY, -512, 512, -512, 512); // TODO. 입력 기기마다 다른 입렵 범위가 들어오는지 확인
+  int rightTrackSpeed = map(rightStickY, -512, 512, -512, 512);
 
   // 속도 제한
   leftTrackSpeed = constrain(leftTrackSpeed, -512, 512);
@@ -596,6 +596,7 @@ void setup() {
   BP32.forgetBluetoothKeys();
   BP32.enableVirtualDevice(false);
 
+#ifdef USE_LOG
   ESP_LOGI(MAIN_TAG, "Firmware version: %s", BP32.firmwareVersion());
   const uint8_t *addr = BP32.localBdAddress();
   ESP_LOGI(MAIN_TAG,
@@ -608,6 +609,7 @@ void setup() {
            addr[5]);
 
   ESP_LOGI(MAIN_TAG, "RC Tank Initialization Complete!");
+#endif
 }
 
 // 메인 루프
