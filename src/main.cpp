@@ -170,6 +170,8 @@ void onConnectedController(const ControllerPtr ctl) {
   if (!foundEmptySlot) {
     ESP_LOGW(MAIN_TAG, "Gamepad connected, but no empty slot found");
   }
+
+  BP32.enableNewBluetoothConnections(false);
 }
 
 // 게임패드 연결 해제 콜백
@@ -204,6 +206,8 @@ void onDisconnectedController(ControllerPtr ctl) {
     setMotorSpeed(&rightTrackMotor, 0);
 
     digitalWrite(HEADLIGHT_PIN, LOW);
+
+    BP32.enableNewBluetoothConnections(true);
   }
 
   if (!foundController) {
